@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import json
 import urllib.request
 import sys
+import mimetypes
 
 
 # Configure logging
@@ -37,7 +38,8 @@ def process_inputs(
     tts_model,
     creativity_level,
     user_instructions,
-    voices
+    voices,
+    is_mock
 ):
     try:
         logger.info("Starting podcast generation process")
@@ -80,6 +82,15 @@ def process_inputs(
 
         SLACK_BOT_TOKEN = get_api_key("SLACK_BOT_TOKEN", "")
         SLACK_CHANNEL_ID = get_api_key("SLACK_CHANNEL_ID", "")
+
+        # parse is_mock
+        if not is_mock:
+            is_mock = False
+
+        if isinstance(is_mock, str) and (is_mock.lower() == "false" or is_mock.lower() == "no" or is_mock.lower() == "0"):
+            is_mock = False
+        else:
+            is_mock = True
 
         # Parse voices
         if not voices:
@@ -193,9 +204,7 @@ def process_inputs(
             "conversation_config": conversation_config
         }, indent=4) + "\n```\n", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
-        condition = True  # Replace with your actual condition
-
-        if condition:
+        if is_mock:
             audio_file = "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
         else:
             audio_file = generate_podcast(
@@ -206,7 +215,10 @@ def process_inputs(
                 conversation_config=conversation_config
             )
 
-        logger.info("Podcast generation completed")
+        # Convert related audio_file path to absolute
+        audio_file = os.path.abspath(audio_file)
+
+        logger.info(f"Podcast generation completed => {audio_file}")
 
         # Cleanup
         logger.debug("Cleaning up temporary files")
@@ -233,7 +245,6 @@ def process_inputs(
     except Exception as e:
         logger.error(f"Error in process_inputs: {str(e)}", exc_info=True)
         send_text_to_slack(f"Error generating podcast: {str(e)}")
-        send_audio_to_slack(f"Error generating podcast: {str(e)}, so I will send you an old one!", "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3")
         # Cleanup on error
         for file_path in temp_files:
             if os.path.exists(file_path):
@@ -242,9 +253,6 @@ def process_inputs(
             if os.path.exists(dir_path):
                 os.rmdir(dir_path)
         return str(e)
-
-# Send to Slack
-def SLACK_THREAD_ID = ""
 
 def send_text_to_slack(text, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
     """
@@ -287,7 +295,9 @@ def send_text_to_slack(text, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
             else:
                 print(f"Error sending message: {parsed}")
     except Exception as e:
-        print(f"Exception occurred: {e}")
+        import traceback
+        trace = traceback.format_exc()
+        print(f"[SEND TO SLACK] Exception occurred: {e}\t{trace}")
 
 # Send to Slack the Result files (Audio and Transcript)
 def send_audio_to_slack(initial_comment, file_filepath, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
@@ -321,15 +331,13 @@ def send_audio_to_slack(initial_comment, file_filepath, SLACK_BOT_TOKEN, SLACK_C
         file_id = url_external_data["file_id"]
 
         # 2. PUT file content to upload URL
-        mtype = mimetypes.guess_type(file_filepath) or 'application/octet-stream'
-
         with open(file_filepath, "rb") as f:
             file_content = f.read()
 
+        print(f"Send Audio to Slack: Uploading file to URL {upload_url} from {file_filepath}. File content length: {len(file_content)}")
         upload_request = urllib.request.Request(
             upload_url,
             data=file_content,
-            headers={"Content-Type": mtype},
             method="POST"
         )
 
@@ -377,10 +385,10 @@ def send_audio_to_slack(initial_comment, file_filepath, SLACK_BOT_TOKEN, SLACK_C
         return None
 
     except Exception as e:
-        print(f"Exception occurred: {e}")
-        send_text_to_slack(f"Exception occurred: {e}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         import traceback
-        traceback.print_exc()
+        stack_trace = traceback.format_exc()  # Capture the stack trace as a string
+        print(f"[Send Audio to Slack] Exception occurred: {e}\t{stack_trace}")
+        send_text_to_slack(f"Exception occurred: {e}\n{stack_trace}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         return None
 
 # Create Gradio interface with updated theme
@@ -611,6 +619,13 @@ with gr.Blocks(
                 info="Voices that we should use in the conversation. The first will be the 'Question' voice and the other will be the 'Answer' voice."
             )
 
+            is_mock = gr.Radio(
+                choices=["yes", "no"],
+                value="yes",
+                label="Mock?",
+                info="Enable to actually process this request, disable to simulate the process."
+            )
+
     # Output Section
     gr.Markdown(
         """
@@ -641,7 +656,8 @@ with gr.Blocks(
             roles_person1, roles_person2,
             dialogue_structure, podcast_name,
             podcast_tagline, tts_model,
-            creativity_level, user_instructions, voices
+            creativity_level, user_instructions, voices,
+            is_mock
         ],
         outputs=audio_output
     )
