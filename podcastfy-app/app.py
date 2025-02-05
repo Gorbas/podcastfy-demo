@@ -8,6 +8,8 @@ import json
 import urllib.request
 import sys
 import mimetypes
+import time
+import random
 
 
 # Configure logging
@@ -42,6 +44,7 @@ def process_inputs(
     is_mock
 ):
     try:
+        # Unique identfier time based
         logger.info("Starting podcast generation process")
         logger.info("Param " + json.dumps({
             "text_input": text_input,
@@ -83,14 +86,18 @@ def process_inputs(
         SLACK_BOT_TOKEN = get_api_key("SLACK_BOT_TOKEN", "")
         SLACK_CHANNEL_ID = get_api_key("SLACK_CHANNEL_ID", "")
 
+        requestId = str(int(time.time())) + "_" + str(random.randint(1000, 9999))
+
         # parse is_mock
         if not is_mock:
-            is_mock = False
+            is_mock = "No"
 
         if isinstance(is_mock, str) and (is_mock.lower() == "false" or is_mock.lower() == "no" or is_mock.lower() == "0"):
-            is_mock = False
+            is_mock = "No"
+        elif isinstance(is_mock, str) and (is_mock.lower() == "true" or is_mock.lower() == "yes" or is_mock.lower() == "1"):
+            is_mock = "Yes"
         else:
-            is_mock = True
+            is_mock = "Transcript"
 
         # Parse voices
         if not voices:
@@ -196,27 +203,50 @@ def process_inputs(
         logger.debug(f"Image paths: {image_paths}")
         logger.debug(f"Text input present: {'Yes' if text_input else 'No'}")
 
-        send_text_to_slack("[BEGIN] Generating podcast for the inputs:\n```\n" + json.dumps({
+
+        mock_flag = "[MOCK RUN]"
+        if (is_mock == "No"):
+            mock_flag = "[ACTUAL RUN]"
+        elif (is_mock == "Transcript"):
+            mock_flag = "[TRANSCRIPT ONLY]"
+
+        send_files_to_slack(requestId, f"[{requestId}][{mock_flag}][BEGIN]", json.dumps({
+            "is_mock": is_mock,
             "urls": urls,
             "text_input": text_input,
             "image_paths": image_paths,
             "tts_model": tts_model,
             "conversation_config": conversation_config
-        }, indent=4) + "\n```\n", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+        }, indent=4) + "\n```\n", None, None, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
-        if is_mock:
+        if is_mock == "Yes":
+            transcript_file = "/var/www/html/data/transcripts/transcript_eb3b9b19d81949f999680679c6e30bb0.txt"
             audio_file = "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
-        else:
-            audio_file = generate_podcast(
+        elif is_mock == "Transcript" or is_mock == "No":
+            transcript_file = generate_podcast(
                 urls=urls if urls else None,
                 text=text_input if text_input else None,
                 image_paths=image_paths if image_paths else None,
                 tts_model=tts_model,
-                conversation_config=conversation_config
+                conversation_config=conversation_config,
+                transcript_only=True
             )
+            transcript_file = os.path.abspath(transcript_file)
 
-        # Convert related audio_file path to absolute
-        audio_file = os.path.abspath(audio_file)
+            if is_mock == "Transcript":
+                audio_file = None
+            else:
+                audio_file = generate_podcast(
+                    urls=urls if urls else None,
+                    text=text_input if text_input else None,
+                    image_paths=image_paths if image_paths else None,
+                    tts_model=tts_model,
+                    conversation_config=conversation_config,
+                    transcript_file = transcript_file
+                )
+                # Convert related audio_file path to absolute
+                audio_file = os.path.abspath(audio_file)
+
 
         logger.info(f"Podcast generation completed => {audio_file}")
 
@@ -232,19 +262,20 @@ def process_inputs(
                 logger.debug(f"Removed temp directory: {dir_path}")
 
 
-        send_audio_to_slack("[DONE] Generated podcast for the inputs:\n```\n" + json.dumps({
+        send_files_to_slack(requestId, f"{requestId}\t{mock_flag}[BEGIN]", json.dumps({
+            "is_mock": is_mock,
             "urls": urls,
             "text_input": text_input,
             "image_paths": image_paths,
             "tts_model": tts_model,
             "conversation_config": conversation_config
-        }, indent=4) + "\n```\n", audio_file, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+        }, indent=4) + "\n```\n", audio_file, transcript_file, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
         return audio_file
 
     except Exception as e:
         logger.error(f"Error in process_inputs: {str(e)}", exc_info=True)
-        send_text_to_slack(f"Error generating podcast: {str(e)}")
+        send_text_to_slack(f"[{requestId}][{mock_flag}][ERROR]\t{str(e)}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         # Cleanup on error
         for file_path in temp_files:
             if os.path.exists(file_path):
@@ -300,87 +331,111 @@ def send_text_to_slack(text, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
         print(f"[SEND TO SLACK] Exception occurred: {e}\t{trace}")
 
 # Send to Slack the Result files (Audio and Transcript)
-def send_audio_to_slack(initial_comment, file_filepath, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
-    """Uploads a file to Slack using urllib.request and the three-step process."""
-
-    if not os.path.exists(file_filepath):
-        raise FileNotFoundError(f"File not found at {file_filepath}")
+def send_files_to_slack(uuid, initial_comment, input_params, audio_filepath, transcript_filepath, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
+    """Uploads audio and transcript to Slack in a single message."""
+    #  Store input_params in a tmp file that should be also sent
+    input_params_file_path = os.path.abspath(f"data/input_params_{uuid}.json")
+    with open(input_params_file_path, "w") as input_params_file:
+        input_params_file.write(input_params)
 
     try:
-        # 1. files.getUploadURLExternal
-        url_external_url = "https://slack.com/api/files.getUploadURLExternal"
-        url_external_data = urllib.parse.urlencode({
-            "filename": os.path.basename(file_filepath),
-            "length": os.path.getsize(file_filepath)
-        }).encode("utf-8")  # Encode data for urllib
+        # 1. Get upload URLs for both files
+        upload_urls = {}
+        file_ids = {}
+        files = {}
 
-        url_external_request = urllib.request.Request(
-            url_external_url,
-            data=url_external_data,
-            headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
-            method="POST"  # Explicitly set to POST
-        )
+        files["input"] = input_params_file_path
 
-        with urllib.request.urlopen(url_external_request) as url_external_response:
-            url_external_data = json.loads(url_external_response.read().decode("utf-8"))
+        if audio_filepath is not None:
+            files["audio"] = audio_filepath
 
-        if not url_external_data.get("ok"):
-            raise Exception(f"Error getting upload URL: {url_external_data}")
+        if transcript_filepath is not None:
+            files["transcript"] = transcript_filepath
 
-        upload_url = url_external_data["upload_url"]
-        file_id = url_external_data["file_id"]
+        for filetype in files:
+            filepath = files[filetype]
+            print(f"Check file: {filepath}\t{filetype}")
+            if not os.path.exists(filepath):
+                continue
 
-        # 2. PUT file content to upload URL
-        with open(file_filepath, "rb") as f:
-            file_content = f.read()
+            url_external_url = "https://slack.com/api/files.getUploadURLExternal"
+            url_external_data = urllib.parse.urlencode({
+                "filename": os.path.basename(filepath),
+                "length": os.path.getsize(filepath)
+            }).encode("utf-8")
 
-        print(f"Send Audio to Slack: Uploading file to URL {upload_url} from {file_filepath}. File content length: {len(file_content)}")
-        upload_request = urllib.request.Request(
-            upload_url,
-            data=file_content,
-            method="POST"
-        )
+            url_external_request = urllib.request.Request(
+                url_external_url, data=url_external_data,
+                headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}, method="POST"
+            )
 
-        with urllib.request.urlopen(upload_request) as upload_response:
-            if upload_response.getcode()!= 200: # Check HTTP status code
-                raise Exception(f"File upload failed with status code: {upload_response.getcode()}")
+            with urllib.request.urlopen(url_external_request) as url_external_response:
+                url_external_data = json.loads(url_external_response.read().decode("utf-8"))
 
-        # 3. files.completeUploadExternal
+            if not url_external_data.get("ok"):
+                raise Exception(f"Error getting upload URL for {filetype}: {url_external_data}")
+
+            upload_urls[filetype] = url_external_data["upload_url"]
+            file_ids[filetype] = url_external_data["file_id"]
+
+        # 2. PUT file content to upload URLs
+        for filetype in files:
+            filepath = files[filetype]
+            if not os.path.exists(filepath):
+                continue
+
+            with open(filepath, "rb") as f:
+                file_content = f.read()
+
+            print(f"Send to Slack: Uploading {filetype} to URL {upload_urls[filetype]} from {filepath}. File content length: {len(file_content)}")
+            upload_request = urllib.request.Request(
+                upload_urls[filetype], data=file_content, method="POST"
+            )
+
+            with urllib.request.urlopen(upload_request) as upload_response:
+                if upload_response.getcode() != 200:  # Check HTTP status code
+                    raise Exception(f"{filetype.capitalize()} upload failed with status code: {upload_response.getcode()}")
+
+
+        # 3. files.completeUploadExternal (Combine in one request)
         complete_url = "https://slack.com/api/files.completeUploadExternal"
+        files_data = []
+
+
+        for filetype in files:
+            filepath = files[filetype]
+            if file_ids[filetype] is not None:
+                files_data.append({"id": file_ids[filetype], "title": os.path.basename(filepath)})
+
         complete_data = urllib.parse.urlencode({
-            "files": [
-                {"id": file_id, "title": os.path.basename(file_filepath)}
-            ],
+            "files": json.dumps(files_data),  # Important: JSON string here
             "channel_id": SLACK_CHANNEL_ID,
             "initial_comment": initial_comment,
         }).encode("utf-8")
 
         complete_request = urllib.request.Request(
-            complete_url,
-            data=complete_data,
-            headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"},
-            method="POST"
+            complete_url, data=complete_data,
+            headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}, method="POST"
         )
-
 
         with urllib.request.urlopen(complete_request) as complete_response:
             complete_data = json.loads(complete_response.read().decode("utf-8"))
 
         if complete_data.get("ok"):
-            print("File uploaded successfully.")
+            print("Files uploaded successfully.")
             return complete_data
         else:
             raise Exception(f"Error completing upload: {complete_data}")
 
     except urllib.error.HTTPError as e:
         print(f"HTTP Error: {e.code} {e.reason}")
-        send_text_to_slack(f"HTTP Error: {e.code} {e.reason}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+        send_text_to_slack(f"[{uuid}][ERROR] HTTP Error: {e.code} {e.reason}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         try:
             error_data = json.loads(e.read().decode('utf-8')) # Try to parse error response
             print(f"Error details: {error_data}")
-            send_text_to_slack(f"Error details: {error_data}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+            send_text_to_slack(f"[{uuid}][ERROR] Details: {error_data}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         except json.JSONDecodeError:
-            send_text_to_slack("Error details could not be parsed.", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+            send_text_to_slack(f"[{uuid}][ERROR] Details could not be parsed.", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
             print("Error details could not be parsed.")
         return None
 
@@ -388,7 +443,7 @@ def send_audio_to_slack(initial_comment, file_filepath, SLACK_BOT_TOKEN, SLACK_C
         import traceback
         stack_trace = traceback.format_exc()  # Capture the stack trace as a string
         print(f"[Send Audio to Slack] Exception occurred: {e}\t{stack_trace}")
-        send_text_to_slack(f"Exception occurred: {e}\n{stack_trace}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+        send_text_to_slack(f"[{uuid}][ERROR][ERROR] Exception occurred: {e}\n{stack_trace}", SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
         return None
 
 # Create Gradio interface with updated theme
@@ -620,7 +675,7 @@ with gr.Blocks(
             )
 
             is_mock = gr.Radio(
-                choices=["yes", "no"],
+                choices=["yes", "no", "transcript"],
                 value="yes",
                 label="Mock?",
                 info="Enable to actually process this request, disable to simulate the process."
@@ -640,6 +695,10 @@ with gr.Blocks(
         audio_output = gr.Audio(
             type="filepath",
             label="Generated Podcast"
+        ),
+        transcript_output = gr.File(
+            type="filepath",
+            label="Generated Transcript"
         )
 
     # Footer
