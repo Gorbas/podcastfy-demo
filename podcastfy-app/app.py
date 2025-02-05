@@ -194,6 +194,9 @@ def process_inputs(
                 "audio_format": "mp3",
                 "temp_audio_dir": "data/audio/tmp/",
                 "ending_message": "Bye Bye!"
+            },
+            "content_generator": {
+                "langchain_tracing_v2": False
             }
         }
 
@@ -223,7 +226,7 @@ def process_inputs(
             transcript_file = "/var/www/html/data/transcripts/transcript_eb3b9b19d81949f999680679c6e30bb0.txt"
             audio_file = "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
         elif is_mock == "Transcript" or is_mock == "No":
-            transcript_file = generate_podcast(
+            _result = generate_podcast(
                 urls=urls if urls else None,
                 text=text_input if text_input else None,
                 image_paths=image_paths if image_paths else None,
@@ -231,12 +234,18 @@ def process_inputs(
                 conversation_config=conversation_config,
                 transcript_only=True
             )
+            if _result is string:
+                transcript_file = _result
+            else:
+                result = _result
+                transcript_file = _result["transcript_file"]
             transcript_file = os.path.abspath(transcript_file)
+            result["transcript_file"] = transcript_file
 
             if is_mock == "Transcript":
                 audio_file = None
             else:
-                audio_file = generate_podcast(
+                _result = generate_podcast(
                     urls=urls if urls else None,
                     text=text_input if text_input else None,
                     image_paths=image_paths if image_paths else None,
@@ -244,9 +253,13 @@ def process_inputs(
                     conversation_config=conversation_config,
                     transcript_file = transcript_file
                 )
-                # Convert related audio_file path to absolute
-                audio_file = os.path.abspath(audio_file)
+                if _result is string:
+                    audio_file = _result
+                else:
+                    audio_file = _result["audio_file"]
 
+                audio_file = os.path.abspath(audio_file)
+                result["audio_file"] = audio_file
 
         logger.info(f"Podcast generation completed => {audio_file}")
 
@@ -268,7 +281,8 @@ def process_inputs(
             "text_input": text_input,
             "image_paths": image_paths,
             "tts_model": tts_model,
-            "conversation_config": conversation_config
+            "conversation_config": conversation_config,
+            "result": result
         }, indent=4) + "\n```\n", audio_file, transcript_file, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
         return audio_file
