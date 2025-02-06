@@ -234,7 +234,7 @@ def process_inputs(
                 conversation_config=conversation_config,
                 transcript_only=True
             )
-            if _result is string:
+            if isinstance(_result, str):
                 transcript_file = _result
             else:
                 result = _result
@@ -253,7 +253,7 @@ def process_inputs(
                     conversation_config=conversation_config,
                     transcript_file = transcript_file
                 )
-                if _result is string:
+                if isinstance(_result, str):
                     audio_file = _result
                 else:
                     audio_file = _result["audio_file"]
