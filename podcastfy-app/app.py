@@ -275,7 +275,7 @@ def process_inputs(
                 logger.debug(f"Removed temp directory: {dir_path}")
 
 
-        send_files_to_slack(requestId, f"{requestId}\t{mock_flag}[BEGIN]", json.dumps({
+        send_files_to_slack(requestId, f"{requestId}\t{mock_flag}[COMPLETED]", json.dumps({
             "is_mock": is_mock,
             "urls": urls,
             "text_input": text_input,
@@ -417,9 +417,11 @@ def send_files_to_slack(uuid, initial_comment, input_params, audio_filepath, tra
 
 
         for filetype in files:
-            filepath = files[filetype]
-            if file_ids[filetype] is not None:
-                files_data.append({"id": file_ids[filetype], "title": os.path.basename(filepath)})
+            if filetype in file_ids and filetype in files:
+                filepath = files[filetype]
+                file_id = file_ids[filetype]
+                if file_id is not None:
+                    files_data.append({"id": file_id, "title": os.path.basename(filepath)})
 
         complete_data = urllib.parse.urlencode({
             "files": json.dumps(files_data),  # Important: JSON string here
