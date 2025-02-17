@@ -92,7 +92,9 @@ def process_inputs(
         if not is_mock:
             is_mock = "No"
 
-        if isinstance(is_mock, str) and (is_mock.lower() == "false" or is_mock.lower() == "no" or is_mock.lower() == "0"):
+        if isinstance(is_mock, str) and (is_mock.lower() == "transcript2voice"):
+            is_mock = "Transcript2Voice"
+        elif isinstance(is_mock, str) and (is_mock.lower() == "false" or is_mock.lower() == "no" or is_mock.lower() == "0"):
             is_mock = "No"
         elif isinstance(is_mock, str) and (is_mock.lower() == "true" or is_mock.lower() == "yes" or is_mock.lower() == "1"):
             is_mock = "Yes"
@@ -208,7 +210,10 @@ def process_inputs(
 
 
         mock_flag = "[MOCK RUN]"
-        if (is_mock == "No"):
+
+        if (is_mock == "Transcript2Voice"):
+            mock_flag = "[TRANSCRIPT TO VOICE RUN]"
+        elif (is_mock == "No"):
             mock_flag = "[ACTUAL RUN]"
         elif (is_mock == "Transcript"):
             mock_flag = "[TRANSCRIPT ONLY]"
@@ -222,9 +227,39 @@ def process_inputs(
             "conversation_config": conversation_config
         }, indent=4) + "\n```\n", None, None, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
-        if is_mock == "Yes":
+        if (is_mock == "Transcript2Voice") :
+            # Q: How may I get epoch timestamp in python?
+            # A: You can use time.time() function to get the current epoch timestamp in python.
+            transcript_file = f"/var/www/html/data/transcripts/transcript_{time.time()}_{requestId}.txt"
+            with open(transcript_file, "w") as f:
+                f.write(user_instructions)
+
+            _result = generate_podcast(
+                urls=urls if urls else None,
+                text=text_input if text_input else None,
+                image_paths=image_paths if image_paths else None,
+                tts_model=tts_model,
+                conversation_config=conversation_config,
+                transcript_file = transcript_file
+            )
+            result = {}
+            if isinstance(_result, str):
+                audio_file = _result
+            else:
+                result = _result
+                audio_file = _result["audio_file"]
+
+            audio_file = os.path.abspath(audio_file)
+            result["audio_file"] = audio_file
+            result["transcript_file"] = transcript_file
+
+        elif is_mock == "Yes":
             transcript_file = "/var/www/html/data/transcripts/transcript_eb3b9b19d81949f999680679c6e30bb0.txt"
             audio_file = "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
+            result = {
+                "audio_file": audio_file,
+                "transcript_file": transcript_file
+            }
         elif is_mock == "Transcript" or is_mock == "No":
             _result = generate_podcast(
                 urls=urls if urls else None,
@@ -691,7 +726,7 @@ with gr.Blocks(
             )
 
             is_mock = gr.Radio(
-                choices=["yes", "no", "transcript"],
+                choices=["yes", "no", "transcript", "transcript2voice"],
                 value="yes",
                 label="Mock?",
                 info="Enable to actually process this request, disable to simulate the process."
