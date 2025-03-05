@@ -41,7 +41,9 @@ def process_inputs(
     creativity_level,
     user_instructions,
     voices,
-    is_mock
+    is_mock,
+    request_id,
+    callback_url
 ):
     try:
         # Unique identfier time based
@@ -64,7 +66,10 @@ def process_inputs(
             "tts_model": tts_model,
             "creativity_level": creativity_level,
             "user_instructions": user_instructions,
-            "voices": voices
+            "voices": voices,
+            "is_mock": is_mock,
+            "request_id": request_id,
+            "callback_url": callback_url
         }, indent=4) )
 
         # API key handling
@@ -86,7 +91,10 @@ def process_inputs(
         SLACK_BOT_TOKEN = get_api_key("SLACK_BOT_TOKEN", "")
         SLACK_CHANNEL_ID = get_api_key("SLACK_CHANNEL_ID", "")
 
-        requestId = str(int(time.time())) + "_" + str(random.randint(1000, 9999))
+        requestId = request_id
+        file_group = str(int(time.time())) + "_" + str(random.randint(1000, 9999))
+        if not requestId:
+            requestId = file_group
 
         # parse is_mock
         if not is_mock:
@@ -195,7 +203,7 @@ def process_inputs(
                 },
                 "audio_format": "mp3",
                 "temp_audio_dir": "data/audio/tmp/",
-                "ending_message": "Bye Bye!"
+                "ending_message": ""
             },
             "content_generator": {
                 "langchain_tracing_v2": False
@@ -218,7 +226,7 @@ def process_inputs(
         elif (is_mock == "Transcript"):
             mock_flag = "[TRANSCRIPT ONLY]"
 
-        send_files_to_slack(requestId, f"[{requestId}][{mock_flag}][BEGIN]", json.dumps({
+        send_files_to_slack(requestId, file_group, f"[{requestId}][{mock_flag}][BEGIN]", json.dumps({
             "is_mock": is_mock,
             "urls": urls,
             "text_input": text_input,
@@ -230,7 +238,7 @@ def process_inputs(
         if (is_mock == "Transcript2Voice") :
             # Q: How may I get epoch timestamp in python?
             # A: You can use time.time() function to get the current epoch timestamp in python.
-            transcript_file = f"/var/www/html/data/transcripts/transcript_{time.time()}_{requestId}.txt"
+            transcript_file = f"/var/www/html/data/transcripts/transcript_{file_group}.txt"
             with open(transcript_file, "w") as f:
                 f.write(user_instructions)
 
@@ -275,6 +283,9 @@ def process_inputs(
                 result = _result
                 transcript_file = _result["transcript_file"]
             transcript_file = os.path.abspath(transcript_file)
+            transcript_file_new = f"/var/www/html/data/transcripts/transcript_{file_group}.txt"
+            os.rename(transcript_file, transcript_file_new)
+            transcript_file = transcript_file_new
             result["transcript_file"] = transcript_file
 
             if is_mock == "Transcript":
@@ -294,6 +305,10 @@ def process_inputs(
                     audio_file = _result["audio_file"]
 
                 audio_file = os.path.abspath(audio_file)
+                # rename the audio_file to include the request id and move the file to the public directory
+                audio_file_new = f"/var/www/html/data/audio/podcast_{file_group}.mp3"
+                os.rename(audio_file, audio_file_new)
+                audio_file = audio_file_new
                 result["audio_file"] = audio_file
 
         logger.info(f"Podcast generation completed => {audio_file}")
@@ -309,16 +324,68 @@ def process_inputs(
                 os.rmdir(dir_path)
                 logger.debug(f"Removed temp directory: {dir_path}")
 
+        http_audio_file = ""
+        http_transcript_file = ""
 
-        send_files_to_slack(requestId, f"{requestId}\t{mock_flag}[COMPLETED]", json.dumps({
+        if audio_file:
+            http_audio_file = audio_file.replace("/var/www/html/data/", "http://podcastify-files.ifork.eu/")
+
+        if transcript_file:
+            http_transcript_file = transcript_file.replace("/var/www/html/data/", "http://podcastify-files.ifork.eu/")
+
+        send_files_to_slack(requestId, file_group, f"{requestId}\t{mock_flag}[COMPLETED]", json.dumps({
             "is_mock": is_mock,
             "urls": urls,
             "text_input": text_input,
             "image_paths": image_paths,
             "tts_model": tts_model,
             "conversation_config": conversation_config,
-            "result": result
+            "result": result,
+            "http_audio_file": http_audio_file,
+            "http_transcript_file": http_transcript_file
         }, indent=4) + "\n```\n", audio_file, transcript_file, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
+
+        if callback_url:
+            # HTTP POST to callback URL with the transcript and audio file using public URLs
+
+            logger.info(f"HTTP Audio File: {http_audio_file}")
+            logger.info(f"HTTP Transcript File: {http_transcript_file}")
+
+            # Prepare the data payload for the callback
+            payload = {
+                "request_id": requestId,
+                "audio_file": http_audio_file,
+                "transcript_file": http_transcript_file
+            }
+
+            # Convert the payload to JSON bytes
+            data = json.dumps(payload).encode("utf-8")
+
+            # Create a request with the required headers:
+            # - Content-Type set to application/json
+            request = urllib.request.Request(
+                callback_url,
+                data=data,
+                headers={
+                    "Content-Type": "application/json; charset=utf-8"
+                },
+                method="POST"
+            )
+
+            # Send the request
+            try:
+                with urllib.request.urlopen(request) as response:
+                    response_data = response.read().decode("utf-8")
+                    parsed = json.loads(response_data)
+
+                    if parsed.get("ok"):
+                        logger.info("Callback sent successfully.")
+                    else:
+                        logger.error(f"Error sending callback: {parsed}")
+            except Exception as e:
+                import traceback
+                trace = traceback.format_exc()
+                logger.error(f"[SEND CALLBACK] Exception occurred: {e}\t{trace}")
 
         return audio_file
 
@@ -380,10 +447,10 @@ def send_text_to_slack(text, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
         print(f"[SEND TO SLACK] Exception occurred: {e}\t{trace}")
 
 # Send to Slack the Result files (Audio and Transcript)
-def send_files_to_slack(uuid, initial_comment, input_params, audio_filepath, transcript_filepath, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
+def send_files_to_slack(uuid, file_group, initial_comment, input_params, audio_filepath, transcript_filepath, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID):
     """Uploads audio and transcript to Slack in a single message."""
     #  Store input_params in a tmp file that should be also sent
-    input_params_file_path = os.path.abspath(f"data/input_params_{uuid}.json")
+    input_params_file_path = os.path.abspath(f"data/input_params_{file_group}.json")
     with open(input_params_file_path, "w") as input_params_file:
         input_params_file.write(input_params)
 
@@ -566,6 +633,18 @@ with gr.Blocks(
             </h2>
             """,
             elem_classes=["section-header"]
+        )
+        request_id = gr.Textbox(
+            label="Request ID",
+            value="",
+            info="Unique identifier for the request",
+            lines=1
+        )
+        callback_url = gr.Textbox(
+            label="Callback URL",
+            value="",
+            info="URL to send the generated podcast to",
+            lines=1
         )
         with gr.Accordion("Configure Input Content", open=False):
             with gr.Group():
@@ -767,7 +846,7 @@ with gr.Blocks(
             dialogue_structure, podcast_name,
             podcast_tagline, tts_model,
             creativity_level, user_instructions, voices,
-            is_mock
+            is_mock, request_id, callback_url
         ],
         outputs=audio_output
     )
