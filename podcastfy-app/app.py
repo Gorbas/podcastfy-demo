@@ -242,6 +242,7 @@ def process_inputs(
             "conversation_config": conversation_config
         }, indent=4) + "\n```\n", None, None, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
+        result = {}
         if (is_mock == "Transcript2Voice") :
             # Q: How may I get epoch timestamp in python?
             # A: You can use time.time() function to get the current epoch timestamp in python.
@@ -255,9 +256,8 @@ def process_inputs(
                 image_paths=image_paths if image_paths else None,
                 tts_model=tts_model,
                 conversation_config=conversation_config,
-                transcript_file = transcript_file
+                transcript_file=transcript_file
             )
-            result = {}
             if isinstance(_result, str):
                 audio_file = _result
             else:
@@ -282,7 +282,8 @@ def process_inputs(
                 image_paths=image_paths if image_paths else None,
                 tts_model=tts_model,
                 conversation_config=conversation_config,
-                transcript_only=True
+                transcript_only=True,
+                longform=word_count > 5000
             )
             if isinstance(_result, str):
                 transcript_file = _result
@@ -304,7 +305,7 @@ def process_inputs(
                     image_paths=image_paths if image_paths else None,
                     tts_model=tts_model,
                     conversation_config=conversation_config,
-                    transcript_file = transcript_file
+                    transcript_file=transcript_file
                 )
                 if isinstance(_result, str):
                     audio_file = _result
