@@ -43,7 +43,8 @@ def process_inputs(
     voices,
     is_mock,
     request_id,
-    callback_url
+    callback_url,
+    language
 ):
     try:
         # Unique identfier time based
@@ -69,7 +70,8 @@ def process_inputs(
             "voices": voices,
             "is_mock": is_mock,
             "request_id": request_id,
-            "callback_url": callback_url
+            "callback_url": callback_url,
+            "language": language
         }, indent=4) )
 
         # API key handling
@@ -125,6 +127,9 @@ def process_inputs(
             question_voice = "George"
             answer_voice = "Daniel"
 
+        question_voice = question_voice.replace(" ", "");
+        answer_voice = answer_voice.replace(" ", "");
+
         # Process URLs
         urls = [url.strip() for url in urls_input.split('\n') if url.strip()]
         logger.debug(f"Processed URLs: {urls}")
@@ -179,6 +184,7 @@ def process_inputs(
         # Prepare conversation config
         logger.debug("Preparing conversation config")
         conversation_config = {
+            "max_num_chunks": 100,
             "word_count": word_count,
             "conversation_style": conversation_style.split(','),
             "roles_person1": roles_person1,
@@ -207,7 +213,8 @@ def process_inputs(
             },
             "content_generator": {
                 "langchain_tracing_v2": False
-            }
+            },
+            "output_language": language
         }
 
         # Generate podcast
@@ -697,7 +704,7 @@ with gr.Blocks(
             )
             word_count = gr.Slider(
                 minimum=500,
-                maximum=5000,
+                maximum=100000,
                 value=2000,
                 step=100,
                 label="Word Count",
@@ -811,6 +818,12 @@ with gr.Blocks(
                 info="Enable to actually process this request, disable to simulate the process."
             )
 
+            language = gr.Textbox(
+                label="Language",
+                info="Language of the generated podcast (e.g. Greek, English)",
+                value="English",
+            )
+
     # Output Section
     gr.Markdown(
         """
@@ -846,7 +859,7 @@ with gr.Blocks(
             dialogue_structure, podcast_name,
             podcast_tagline, tts_model,
             creativity_level, user_instructions, voices,
-            is_mock, request_id, callback_url
+            is_mock, request_id, callback_url, language
         ],
         outputs=audio_output
     )
