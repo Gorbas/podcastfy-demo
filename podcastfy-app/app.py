@@ -11,6 +11,12 @@ import mimetypes
 import time
 import random
 
+# Define constants for directories
+DATA_DIR = "/var/www/html/data/"
+TRANSCRIPT_DIR = "/var/www/html/data/transcripts/"
+AUDIO_DIR = "/var/www/html/data/audio/"
+DATA_URL = "https://podcastify-files.ifork.eu/"
+
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -246,7 +252,7 @@ def process_inputs(
         if (is_mock == "Transcript2Voice") :
             # Q: How may I get epoch timestamp in python?
             # A: You can use time.time() function to get the current epoch timestamp in python.
-            transcript_file = f"/var/www/html/data/transcripts/transcript_{file_group}.txt"
+            transcript_file = f"{TRANSCRIPT_DIR}transcript_{file_group}.txt"
             with open(transcript_file, "w") as f:
                 f.write(user_instructions)
 
@@ -269,13 +275,14 @@ def process_inputs(
             result["transcript_file"] = transcript_file
 
         elif is_mock == "Yes":
-            transcript_file = "/var/www/html/data/transcripts/transcript_eb3b9b19d81949f999680679c6e30bb0.txt"
-            audio_file = "/var/www/html/data/audio/podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
+            transcript_file = f"{TRANSCRIPT_DIR}transcript_eb3b9b19d81949f999680679c6e30bb0.txt"
+            audio_file = f"{AUDIO_DIR}podcast_768bee6fe8884dd3bb606d0556612b13.mp3"
             result = {
                 "audio_file": audio_file,
                 "transcript_file": transcript_file
             }
         elif is_mock == "Transcript" or is_mock == "No":
+            transcript_file = f"{TRANSCRIPT_DIR}transcript_{file_group}.txt"
             _result = generate_podcast(
                 urls=urls if urls else None,
                 text=text_input if text_input else None,
@@ -291,7 +298,7 @@ def process_inputs(
                 result = _result
                 transcript_file = _result["transcript_file"]
             transcript_file = os.path.abspath(transcript_file)
-            transcript_file_new = f"/var/www/html/data/transcripts/transcript_{file_group}.txt"
+            transcript_file_new = f"{TRANSCRIPT_DIR}transcript_{file_group}.txt"
             os.rename(transcript_file, transcript_file_new)
             transcript_file = transcript_file_new
             result["transcript_file"] = transcript_file
@@ -314,7 +321,7 @@ def process_inputs(
 
                 audio_file = os.path.abspath(audio_file)
                 # rename the audio_file to include the request id and move the file to the public directory
-                audio_file_new = f"/var/www/html/data/audio/podcast_{file_group}.mp3"
+                audio_file_new = f"{AUDIO_DIR}podcast_{file_group}.mp3"
                 os.rename(audio_file, audio_file_new)
                 audio_file = audio_file_new
                 result["audio_file"] = audio_file
@@ -336,10 +343,10 @@ def process_inputs(
         http_transcript_file = ""
 
         if audio_file:
-            http_audio_file = audio_file.replace("/var/www/html/data/", "http://podcastify-files.ifork.eu/")
+            http_audio_file = audio_file.replace(DATA_DIR, DATA_URL)
 
         if transcript_file:
-            http_transcript_file = transcript_file.replace("/var/www/html/data/", "http://podcastify-files.ifork.eu/")
+            http_transcript_file = transcript_file.replace(DATA_DIR, DATA_URL)
 
         send_files_to_slack(requestId, file_group, f"{requestId}\t{mock_flag}[COMPLETED]", json.dumps({
             "is_mock": is_mock,
