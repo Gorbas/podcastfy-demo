@@ -368,6 +368,7 @@ def process_inputs(
 
             # Prepare the data payload for the callback
             payload = {
+                "result": "success",
                 "request_id": requestId,
                 "audio_file": http_audio_file,
                 "transcript_file": http_transcript_file
