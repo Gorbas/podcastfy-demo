@@ -28,6 +28,9 @@ load_dotenv()
 def get_api_key(key_name, ui_value):
     return ui_value if ui_value else os.getenv(key_name)
 
+def get_wrapper_auth():
+    return os.getenv("WRAPPER_AUTH")
+
 def process_inputs(
     text_input,
     urls_input,
@@ -413,7 +416,7 @@ def process_inputs(
                 data=data,
                 headers={
                     "Content-Type": "application/json; charset=utf-8",
-                    "Authorization": "Basic dG1vdWxvczpHcjB3dGhSMGNrcyE="
+                    "Authorization": get_wrapper_auth()
                 },
                 method="POST"
             )
