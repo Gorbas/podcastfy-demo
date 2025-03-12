@@ -371,19 +371,49 @@ def process_inputs(
                 "result": "success",
                 "request_id": requestId,
                 "audio_file": http_audio_file,
-                "transcript_file": http_transcript_file
+                "transcript_file": http_transcript_file,
+                "is_mock": is_mock,
+                "extras": {
+                    "conversation_config": conversation_config,
+                    "input_params": {
+                        "text_input": text_input,
+                        "urls_input": urls_input,
+                        "pdf_files": pdf_files,
+                        "image_files": image_files,
+                        "gemini_key": gemini_key,
+                        "openai_key": openai_key,
+                        "elevenlabs_key": elevenlabs_key,
+                        "word_count": word_count,
+                        "conversation_style": conversation_style,
+                        "roles_person1": roles_person1,
+                        "roles_person2": roles_person2,
+                        "dialogue_structure": dialogue_structure,
+                        "podcast_name": podcast_name,
+                        "podcast_tagline": podcast_tagline,
+                        "tts_model": tts_model,
+                        "creativity_level": creativity_level,
+                        "user_instructions": user_instructions,
+                        "voices": voices,
+                        "is_mock": is_mock,
+                        "request_id": request_id,
+                        "callback_url": callback_url,
+                        "language": language
+                    }
+                }
             }
 
             # Convert the payload to JSON bytes
             data = json.dumps(payload).encode("utf-8")
 
+            SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
             # Create a request with the required headers:
             # - Content-Type set to application/json
             request = urllib.request.Request(
                 callback_url,
                 data=data,
                 headers={
-                    "Content-Type": "application/json; charset=utf-8"
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Authorization": "Basic dG1vdWxvczpHcjB3dGhSMGNrcyE="
                 },
                 method="POST"
             )
