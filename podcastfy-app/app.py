@@ -408,7 +408,6 @@ def process_inputs(
             # Convert the payload to JSON bytes
             data = json.dumps(payload).encode("utf-8")
 
-            SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
             # Create a request with the required headers:
             # - Content-Type set to application/json
             request = urllib.request.Request(
