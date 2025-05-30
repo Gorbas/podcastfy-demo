@@ -396,7 +396,7 @@ def process_inputs(
             else:
                 prompt_content = _result["prompt"]
 
-            prompt_details = json.parse(prompt_content)
+            prompt_details = json.loads(prompt_content)
             text_input = prompt_details["input_text"];
             prompt_content = generatePrompt(podcast_name, podcast_tagline, text_input, prompt_details)
 
