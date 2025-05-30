@@ -65,7 +65,7 @@ def generatePrompt(
     prompt_params["podcast_name"] = podcast_name if podcast_name else "Podcastfy"
     prompt_params["podcast_tagline"] = podcast_tagline if podcast_tagline else ""
     prompt_params["input_text"] = input_text
-    prompt_params["user_instructions"] = prompt_params.get("user_instructions", "") + self.LONGFORM_INSTRUCTIONS
+    prompt_params["user_instructions"] = prompt_params.get("user_instructions", "") + LONGFORM_INSTRUCTIONS
     prompt_params["instruction"] = f"""
             ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {prompt_params["podcast_name"]} - {prompt_params["podcast_tagline"]}.
             You are generating the Introduction part of a long podcast conversation. Afterwards you should continue the conversation naturally.
