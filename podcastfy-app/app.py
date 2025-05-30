@@ -347,7 +347,10 @@ def process_inputs(
                 transcript_only=True,
                 longform=word_count > 5000
             )
-            prompt_content = _result
+            if isinstance(_result, str):
+                prompt_content = _result
+            else:
+                prompt_content = json.dumps(_result)
             transcript_file = None
             audio_file = None
             prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.txt"
