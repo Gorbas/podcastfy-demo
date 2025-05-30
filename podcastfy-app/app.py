@@ -67,7 +67,7 @@ def generatePrompt(
     prompt_params["input_text"] = input_text
     user_instructions = prompt_params.get("user_instructions", "") + LONGFORM_INSTRUCTIONS
     prompt_params["instruction"] = f"""
-            ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {podcast_name} - {prompt_paramspodcast_tagline}.
+            ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {podcast_name} - {podcast_tagline}.
             You are generating the Introduction part of a long podcast conversation. Afterwards you should continue the conversation naturally.
             For the closing part, make concluding remarks in a podcast conversation format and END THE CONVERSATION GREETING THE AUDIENCE WITH PERSON1 ALSO SAYING A GOOD BYE MESSAGE.
             Make sure to follow the following instructions: {COMMON_INSTRUCTIONS}.
