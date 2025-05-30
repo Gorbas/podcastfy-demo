@@ -404,7 +404,7 @@ def process_inputs(
             audio_file = None
             prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.json"
             with open(prompt_file, "w") as f:
-                f.write(prompt_content)
+                f.write(json.dumps(prompt_content))
             logger.info(f"Prompt file created: {prompt_file}")
             prompt_file = os.path.abspath(prompt_file)
 
