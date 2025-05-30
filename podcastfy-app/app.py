@@ -112,7 +112,7 @@ def process_inputs(
             is_mock = "No"
 
 
-        if isinstance(is_mock, str) and (is_mock.lower() == "PromptOnly"):
+        if isinstance(is_mock, str) and (is_mock.lower() == "promptonly"):
             is_mock = "PromptOnly"
         elif isinstance(is_mock, str) and (is_mock.lower() == "transcript2voice"):
             is_mock = "Transcript2Voice"
