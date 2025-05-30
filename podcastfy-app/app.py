@@ -350,7 +350,7 @@ def process_inputs(
             if isinstance(_result, str):
                 prompt_content = _result
             else:
-                prompt_content = json.dumps(_result)
+                prompt_content = _result["prompt"]
             transcript_file = None
             audio_file = None
             prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.txt"
