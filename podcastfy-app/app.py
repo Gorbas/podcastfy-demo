@@ -111,7 +111,10 @@ def process_inputs(
         if not is_mock:
             is_mock = "No"
 
-        if isinstance(is_mock, str) and (is_mock.lower() == "transcript2voice"):
+
+        if isinstance(is_mock, str) and (is_mock.lower() == "PromptOnly"):
+            is_mock = "PromptOnly"
+        elif isinstance(is_mock, str) and (is_mock.lower() == "transcript2voice"):
             is_mock = "Transcript2Voice"
         elif isinstance(is_mock, str) and (is_mock.lower() == "false" or is_mock.lower() == "no" or is_mock.lower() == "0"):
             is_mock = "No"
@@ -224,6 +227,7 @@ def process_inputs(
                 "langchain_tracing_v2": False
             },
             "output_language": language,
+            "is_mock": is_mock,
             "is_prompt_only": is_mock == "PromptOnly"
         }
 
