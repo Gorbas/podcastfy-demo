@@ -223,7 +223,8 @@ def process_inputs(
             "content_generator": {
                 "langchain_tracing_v2": False
             },
-            "output_language": language
+            "output_language": language,
+            "is_prompt_only": is_mock == "PromptOnly"
         }
 
         # Generate podcast
@@ -234,8 +235,9 @@ def process_inputs(
 
 
         mock_flag = "[MOCK RUN]"
-
-        if (is_mock == "Transcript2Voice"):
+        if (is_mock == "PromptOnly"):
+            mock_flag = "[PROMPT ONLY RUN]"
+        elif (is_mock == "Transcript2Voice"):
             mock_flag = "[TRANSCRIPT TO VOICE RUN]"
         elif (is_mock == "No"):
             mock_flag = "[ACTUAL RUN]"
@@ -252,6 +254,9 @@ def process_inputs(
         }, indent=4) + "\n```\n", None, None, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID)
 
         result = {}
+        transcript_file = None
+        audio_file = None
+        prompt_file = None
         if (is_mock == "Transcript2Voice") :
             # Q: How may I get epoch timestamp in python?
             # A: You can use time.time() function to get the current epoch timestamp in python.
@@ -328,6 +333,25 @@ def process_inputs(
                 os.rename(audio_file, audio_file_new)
                 audio_file = audio_file_new
                 result["audio_file"] = audio_file
+        elif is_mock == "PromptOnly" or is_mock == "No":
+            _result = generate_podcast(
+                urls=urls if urls else None,
+                text=text_input if text_input else None,
+                image_paths=image_paths if image_paths else None,
+                tts_model=tts_model,
+                conversation_config=conversation_config,
+                transcript_only=True,
+                longform=word_count > 5000
+            )
+            prompt_content = _result
+            transcript_file = None
+            audio_file = None
+            prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.txt"
+            with open(prompt_file, "w") as f:
+                f.write(prompt_content)
+            logger.info(f"Prompt file created: {prompt_file}")
+            prompt_file = os.path.abspath(prompt_file)
+
 
         logger.info(f"Podcast generation completed => {audio_file}")
 
@@ -350,6 +374,9 @@ def process_inputs(
 
         if transcript_file:
             http_transcript_file = transcript_file.replace(DATA_DIR, DATA_URL)
+
+        if prompt_file:
+            http_transcript_file = prompt_file.replace(DATA_DIR, DATA_URL)
 
         send_files_to_slack(requestId, file_group, f"{requestId}\t{mock_flag}[COMPLETED]", json.dumps({
             "is_mock": is_mock,
@@ -853,7 +880,7 @@ with gr.Blocks(
             )
 
             is_mock = gr.Radio(
-                choices=["yes", "no", "transcript", "transcript2voice"],
+                choices=["yes", "no", "transcript", "transcript2voice", "PromptOnly"],
                 value="yes",
                 label="Mock?",
                 info="Enable to actually process this request, disable to simulate the process."
