@@ -32,6 +32,7 @@ def get_wrapper_auth():
     return os.getenv("WRAPPER_AUTH")
 
 def generatePrompt(
+    input_params,
     podcast_name,
     podcast_tagline,
     input_text,
@@ -62,6 +63,13 @@ def generatePrompt(
 
     # Enhance the prompt_params
     prompt_params = {}
+
+    prompt_params["word_count"] = input_params.get("word_count", 2000)
+    prompt_params["conversation_style"] = input_params.get("conversation_style", "engaging,fast-paced,enthusiastic".split(','))
+    prompt_params["roles_person1"] = input_params.get("roles_person1", "host")
+    prompt_params["roles_person2"] = input_params.get("roles_person2", "expert guest")
+    prompt_params["dialogue_structure"] = input_params.get("dialogue_structure", "question-answer,discussion,summary".split(','))
+
     podcast_name= podcast_name if podcast_name else "Podcastfy"
     podcast_tagline = podcast_tagline if podcast_tagline else ""
     prompt_params["input_text"] = input_text
@@ -398,7 +406,7 @@ def process_inputs(
 
             prompt_details = json.loads(prompt_content)
             text_input = prompt_details["input_text"];
-            prompt_content = generatePrompt(podcast_name, podcast_tagline, text_input, prompt_details)
+            prompt_content = generatePrompt(conversation_config, podcast_name, podcast_tagline, text_input, prompt_details)
 
             transcript_file = None
             audio_file = None
