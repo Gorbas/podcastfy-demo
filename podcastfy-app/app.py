@@ -31,6 +31,50 @@ def get_api_key(key_name, ui_value):
 def get_wrapper_auth():
     return os.getenv("WRAPPER_AUTH")
 
+def generatePrompt(
+    podcast_name,
+    podcast_tagline,
+    input_text,
+    prompt_params
+    ):
+    # Constants
+    LONGFORM_INSTRUCTIONS = """
+                                Additional Instructions:
+                                    1. Provide extensive examples and real-world applications
+                                    2. Include detailed analysis and multiple perspectives
+                                    3. Use the "yes, and" technique to build upon points
+                                    4. Incorporate relevant anecdotes and case studies
+                                    5. Balance detailed explanations with engaging dialogue
+                                    6. Maintain consistent voice throughout the extended discussion
+                                    7. Generate a long conversation - output max_output_tokens tokens
+                            """
+
+    COMMON_INSTRUCTIONS = """
+                                Keep the Podcast conversation in CONTEXT.
+                                Continue the natural flow of conversation. Follow-up on the very previous point/question without repeating topics or points already discussed!
+                                Hence, the transition should be smooth and natural. Avoid abrupt transitions.
+                                Make sure the first to speak is different from the previous speaker. Look at the last tag in CONTEXT to determine the previous speaker.
+                                If last tag in CONTEXT is <Person1>, then the first to speak now should be <Person2>.
+                                If last tag in CONTEXT is <Person2>, then the first to speak now should be <Person1>.
+                                This is a live conversation without any breaks.
+                                Hence, avoid statemeents such as "we'll discuss after a short break.  Stay tuned" or "Okay, so, picking up where we left off".
+                            """
+
+    # Enhance the prompt_params
+    prompt_params = {}
+    prompt_params["podcast_name"] = podcast_name if podcast_name else "Podcastfy"
+    prompt_params["podcast_tagline"] = podcast_tagline if podcast_tagline else ""
+    prompt_params["input_text"] = input_text
+    prompt_params["user_instructions"] = prompt_params.get("user_instructions", "") + self.LONGFORM_INSTRUCTIONS
+    prompt_params["instruction"] = f"""
+            ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {prompt_params["podcast_name"]} - {prompt_params["podcast_tagline"]}.
+            You are generating the Introduction part of a long podcast conversation. Afterwards you should continue the conversation naturally.
+            For the closing part, make concluding remarks in a podcast conversation format and END THE CONVERSATION GREETING THE AUDIENCE WITH PERSON1 ALSO SAYING A GOOD BYE MESSAGE.
+            Make sure to follow the following instructions: {COMMON_INSTRUCTIONS}.
+            [[MAKE SURE TO FOLLOW THESE INSTRUCTIONS OVERRIDING THE PROMPT TEMPLATE IN CASE OF CONFLICT: {prompt_params["user_instructions"]}]]
+            """
+    return prompt_params
+
 def process_inputs(
     text_input,
     urls_input,
@@ -351,6 +395,11 @@ def process_inputs(
                 prompt_content = _result
             else:
                 prompt_content = _result["prompt"]
+
+            prompt_details = json.parse(prompt_content)
+            text_input = prompt_details["input_text"];
+            prompt_content = generatePrompt(podcast_name, podcast_tagline, text_input, prompt_details)
+
             transcript_file = None
             audio_file = None
             prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.json"
