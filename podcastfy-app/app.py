@@ -62,16 +62,16 @@ def generatePrompt(
 
     # Enhance the prompt_params
     prompt_params = {}
-    prompt_params["podcast_name"] = podcast_name if podcast_name else "Podcastfy"
-    prompt_params["podcast_tagline"] = podcast_tagline if podcast_tagline else ""
+    podcast_name= podcast_name if podcast_name else "Podcastfy"
+    podcast_tagline = podcast_tagline if podcast_tagline else ""
     prompt_params["input_text"] = input_text
-    prompt_params["user_instructions"] = prompt_params.get("user_instructions", "") + LONGFORM_INSTRUCTIONS
+    user_instructions = prompt_params.get("user_instructions", "") + LONGFORM_INSTRUCTIONS
     prompt_params["instruction"] = f"""
-            ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {prompt_params["podcast_name"]} - {prompt_params["podcast_tagline"]}.
+            ALWAYS START THE CONVERSATION GREETING THE AUDIENCE: Welcome to {podcast_name} - {prompt_paramspodcast_tagline}.
             You are generating the Introduction part of a long podcast conversation. Afterwards you should continue the conversation naturally.
             For the closing part, make concluding remarks in a podcast conversation format and END THE CONVERSATION GREETING THE AUDIENCE WITH PERSON1 ALSO SAYING A GOOD BYE MESSAGE.
             Make sure to follow the following instructions: {COMMON_INSTRUCTIONS}.
-            [[MAKE SURE TO FOLLOW THESE INSTRUCTIONS OVERRIDING THE PROMPT TEMPLATE IN CASE OF CONFLICT: {prompt_params["user_instructions"]}]]
+            [[MAKE SURE TO FOLLOW THESE INSTRUCTIONS OVERRIDING THE PROMPT TEMPLATE IN CASE OF CONFLICT: {user_instructions}]]
             """
     return prompt_params
 
