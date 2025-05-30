@@ -353,7 +353,7 @@ def process_inputs(
                 prompt_content = _result["prompt"]
             transcript_file = None
             audio_file = None
-            prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.txt"
+            prompt_file = f"{TRANSCRIPT_DIR}prompt_{file_group}.json"
             with open(prompt_file, "w") as f:
                 f.write(prompt_content)
             logger.info(f"Prompt file created: {prompt_file}")
